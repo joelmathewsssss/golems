@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <iostream> // headers
 #include <map>
-
+#include <ctime>
 
 using namespace std;
 
@@ -19,11 +19,11 @@ int main()
     constexpr int buttonWidth = 260; // button dimensions
     constexpr int buttonHeight = 80;
     
-    constexpr int screenWidth = 1000; // window dimensions
+    constexpr int screenWidth = 2000; // window dimensions
     constexpr int screenHeight = 800;
     
     InitWindow(screenWidth, screenHeight, "Golems"); // initialize window
-    SetTargetFPS(8);
+    SetTargetFPS(21);
     
 
 
@@ -37,6 +37,7 @@ int main()
         DEFAULT_GOLEM,
         RED_GOLEM,
         BLUE_GOLEM,
+        RUBBLE,
         GOLEM_TYPE_COUNT
     };
     const int golemWidth = 200; // golem image dimensions
@@ -44,7 +45,8 @@ int main()
     const char* golemPaths[GOLEM_TYPE_COUNT] = { // paths to golem images
         "assets/golem.png",
         "assets/red.png",
-        "assets/blue.png"
+        "assets/blue.png",
+        "assets/rubble.png"
     };
     Texture2D golemTextures[GOLEM_TYPE_COUNT] = {}; // array to hold golem textures
     for (int i = 0; i < GOLEM_TYPE_COUNT; i++)  // draw list of golems
@@ -83,8 +85,14 @@ int main()
     string check_spell = "";
 
 
-    bool gameloop = false;
-    double gameStartTime = 0.0; // variable to track when the game starts
+    bool gameloop = false;// init game conditions
+    bool wincondition = false;
+    double wintime = 0.0;
+    bool losecondition = false;
+    double losetime = 0.0;
+    int tries = 0;
+    string guessHistory[10] = {};
+    GolemType resultHistory[10][4] = {};
     
     while (!WindowShouldClose())
     {
@@ -116,20 +124,51 @@ int main()
 
                 if (playhovering && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))    // play button press to game start
                 {
-                    gameloop = true;
-                    gameStartTime = GetTime();
+                    WaitTime(0.2f); // delay start
+                    gameloop = true; // reset game conditions
+                    wincondition = false;
+                    wintime = 0.0;
+                    losecondition = false;
+                    losetime = 0.0;
+                    tries = 0;
+                    enteredSpell = "";
+                    check_spell = "";
+                    for (int i = 0; i < 4; i++)
+                    {
+                        golemSlots[i] = DEFAULT_GOLEM;
+                    }
+                    for (int i = 0; i < 10; i++)
+                    {
+                        guessHistory[i] = "";
+                        for (int j = 0; j < 4; j++)
+                        {
+                            resultHistory[i][j] = DEFAULT_GOLEM;
+                        }
+                    }
                     currentSpell = secretspell();   // get secret spell
                 }
             }
 
-            if (gameloop && (GetTime() - gameStartTime) >= 0.2) // start after delay
+            if (gameloop) // start 
             {
                 constexpr int spacing = 20;
                 int totalWidth = (golemTextures[DEFAULT_GOLEM].width * 4) + (spacing * (4 - 1));    // golem position
                 int startX = (screenWidth - totalWidth) / 2;
                 int startY = screenHeight - golemTextures[DEFAULT_GOLEM].height - 500;
 
-                if (enteredSpell.size() < 4)    // enter guess
+                if (wincondition && GetTime() >= wintime)
+                {
+                    wincondition = false;
+                    gameloop = false;
+                }
+
+                if (losecondition && GetTime() >= losetime)
+                {
+                    losecondition = false;
+                    gameloop = false;
+                }
+
+                if (!wincondition && !losecondition && enteredSpell.size() < 4)    // enter guess if game is on
                 {
                     if (IsKeyPressed(KEY_F)) enteredSpell.push_back('F');
                     else if (IsKeyPressed(KEY_W)) enteredSpell.push_back('W');
@@ -137,7 +176,7 @@ int main()
                     else if (IsKeyPressed(KEY_E)) enteredSpell.push_back('E');
                 }
 
-                if (IsKeyPressed(KEY_BACKSPACE) && !enteredSpell.empty())   // backspace guess
+                if (!wincondition && !losecondition && IsKeyPressed(KEY_BACKSPACE) && !enteredSpell.empty())   // backspace guess
                 {
                     enteredSpell.pop_back();
                 }
@@ -149,85 +188,171 @@ int main()
                     DrawTexture(currentTexture, x, startY, WHITE);
                 }
 
+                const int miniScale = 4; // draw guesses and results
+                int miniWidth = golemTextures[DEFAULT_GOLEM].width / miniScale;
+                int miniHeight = golemTextures[DEFAULT_GOLEM].height / miniScale;
+                int miniSpacing = 8;
+                int historyCellWidth = (miniWidth * 4) + (miniSpacing * 3) + 100;
+                int historyCellHeight = miniHeight + 26;
+                int historyStartX = (screenWidth - (historyCellWidth * 5 + 40 * 3)) / 2;
+                int historyStartY = startY + golemTextures[DEFAULT_GOLEM].height + 30;
+
+                for (int i = 0; i < tries && i < 10 && !losecondition; i++)
+                {
+                    int column = i % 5;
+                    int row = i / 5;
+                    int cellX = historyStartX + column * (historyCellWidth + 40);
+                    int cellY = historyStartY + row * (historyCellHeight + 18);
+
+                    int golemSpan = (miniWidth * 4) + (miniSpacing * 3);
+                    int miniStart = cellX;
+                    int miniCenterX = miniStart + golemSpan / 2;
+
+                    int textSize = 20;
+                    int textWidth = MeasureText(guessHistory[i].c_str(), textSize);
+                    int textX = miniCenterX - textWidth / 2;
+                    DrawText(guessHistory[i].c_str(), textX, cellY, textSize, BLACK);
+
+                    int miniY = cellY + 24;
+                    for (int j = 0; j < 4; j++)
+                    {
+                        int miniX = miniStart + j * (miniWidth + miniSpacing);
+                        Texture2D miniTexture = golemTextures[resultHistory[i][j]];
+                        Rectangle src = {0.0f, 0.0f, (float)miniTexture.width, (float)miniTexture.height};
+                        Rectangle dst = {(float)miniX, (float)miniY, (float)miniWidth, (float)miniHeight};
+                        DrawTexturePro(miniTexture, src, dst, {0.0f, 0.0f}, 0.0f, WHITE);
+                    }
+                }
+
                 // if (IsKeyPressed(KEY_R))
                 // {
                 //     currentSpell = secretspell(); // reroll 
                 // }
 
-                int spellSize = 20; // current spell position
-                int textWidth = MeasureText(currentSpell.c_str(), spellSize);
-                int spellX = (screenWidth - textWidth) / 2;
-                int spellY = startY - spellSize - 20;
-                int drawX = spellX;
-                for (char c : currentSpell)
+                if (!losecondition)
                 {
-                    char letter[2] = {c, '\0'};
-                    DrawText(letter, drawX, spellY, spellSize, elementColor(c));
-                    drawX += MeasureText(letter, spellSize);
-                }
-                int slotY = startY + golemTextures[DEFAULT_GOLEM].height + 400;
-                for (int i = 0; i < 4; i++) // draw guess slots
-                {
-                    int slotX = startX + i * (golemTextures[DEFAULT_GOLEM].width + spacing + 50);
-                    int lineWidth = 70;
-                    int lineY = slotY + 50;
-                    DrawLine(slotX, lineY, slotX + lineWidth, lineY, BLACK);
-
-                    if (i < (int)enteredSpell.size())   // draw current guess letters
+                    // int spellSize = 20; // current spell position
+                    // int textWidth = MeasureText(currentSpell.c_str(), spellSize);
+                    // int spellX = (screenWidth - textWidth) / 2;
+                    // int spellY = startY - spellSize - 20;
+                    // int drawX = spellX;
+                    // for (char c : currentSpell)
+                    // {
+                    //     char letter[2] = {c, '\0'};
+                    //     DrawText(letter, drawX, spellY, spellSize, elementColor(c));
+                    //     drawX += MeasureText(letter, spellSize);
+                    // }
+                    int slotY = startY + golemTextures[DEFAULT_GOLEM].height + 400;
+                    for (int i = 0; i < 4; i++) // draw guess slots
                     {
-                        char letter[2] = {enteredSpell[i], '\0'};
-                        int letterSize = 34;
-                        int letterWidth = MeasureText(letter, letterSize);
-                        int letterX = slotX + (lineWidth - letterWidth) / 2;
-                        int letterY = lineY - letterSize - 6;
-                        DrawText(letter, letterX, letterY, letterSize, elementColor(enteredSpell[i]));
-                    }
-                }
-                if (IsKeyPressed(KEY_ENTER) && enteredSpell.size() == 4){   // enter guess logic
-                    check_spell = enteredSpell;
-                    enteredSpell = "";
-                    int red = 0;
-                    int blue = 0;
-                    map<char, int> spellcount;
-                    map<char, int> guesscount;
+                        int slotX = startX + i * (golemTextures[DEFAULT_GOLEM].width + spacing + 50);
+                        int lineWidth = 70;
+                        int lineY = slotY + 50;
+                        DrawLine(slotX, lineY, slotX + lineWidth, lineY, BLACK);
 
-                    for (int i = 0; i < 4; i++){    // check how many match (red)
-                        if (check_spell[i] == currentSpell[i]){
-                            red++; 
-                        }
-                        else
+                        if (i < (int)enteredSpell.size())   // draw current guess letters
                         {
-                            spellcount[currentSpell[i]]++;  // wtv doesnt match
-                            guesscount[check_spell[i]]++;
+                            char letter[2] = {enteredSpell[i], '\0'};
+                            int letterSize = 34;
+                            int letterWidth = MeasureText(letter, letterSize);
+                            int letterX = slotX + (lineWidth - letterWidth) / 2;
+                            int letterY = lineY - letterSize - 6;
+                            DrawText(letter, letterX, letterY, letterSize, elementColor(enteredSpell[i]));
                         }
-                    }
-                    
-                    for (const auto& pair : spellcount){    // check if theres matches and take lowest frequency (blue)
-                        char sletter = pair.first;
-                        int scount = pair.second;
-                        if (guesscount.count(sletter) > 0){
-                            blue += min(scount, guesscount[sletter]);
-                        }
-                    }
-
-                    for (int i = 0; i < 4; i++)  // draw golems based on guess results
-                    {
-                        golemSlots[i] = DEFAULT_GOLEM;
-                    }
-
-                    for (int i = 0; i < red && i < 4; i++)
-                    {
-                        golemSlots[i] = RED_GOLEM;
-                    }
-
-                    for (int i = red; i < red + blue && i < 4; i++)
-                    {
-                        golemSlots[i] = BLUE_GOLEM;
                     }
                 }
 
+                if (!wincondition && !losecondition && tries < 10 && IsKeyPressed(KEY_ENTER) && enteredSpell.size() == 4){   // enter guess logic
+                        check_spell = enteredSpell;
+                        enteredSpell = "";
+                        int red = 0;
+                        int blue = 0;
+                        map<char, int> spellcount;
+                        map<char, int> guesscount;
 
-            }            
+                        for (int i = 0; i < 4; i++){    // check how many match (red)
+                            if (check_spell[i] == currentSpell[i]){
+                                red++; 
+                            }
+                            else
+                            {
+                                spellcount[currentSpell[i]]++;  // wtv doesnt match
+                                guesscount[check_spell[i]]++;
+                            }
+                        }
+                        
+                        for (const auto& pair : spellcount){    // check if theres matches and take lowest frequency (blue)
+                            char sletter = pair.first;
+                            int scount = pair.second;
+                            if (guesscount.count(sletter) > 0){
+                                blue += min(scount, guesscount[sletter]);
+                            }
+                        }
+
+                        for (int i = 0; i < 4; i++)  // draw golems based on guess results
+                        {
+                            golemSlots[i] = DEFAULT_GOLEM;
+                            resultHistory[tries][i] = DEFAULT_GOLEM;
+                        }
+
+                        for (int i = 0; i < red && i < 4; i++)
+                        {
+                            golemSlots[i] = RED_GOLEM;
+                            resultHistory[tries][i] = RED_GOLEM;
+                        }
+
+                        for (int i = red; i < red + blue && i < 4; i++)
+                        {
+                            golemSlots[i] = BLUE_GOLEM;
+                            resultHistory[tries][i] = BLUE_GOLEM;
+                        }
+
+                        guessHistory[tries] = check_spell;
+
+                        if (red == 4) { // win condition
+                            for (int i = 0; i < 4; i++)
+                            {
+                                golemSlots[i] = RUBBLE;
+                            }
+                            tries++;
+                            wincondition = true;
+                            wintime = GetTime() + 2.0; // win timer
+                            continue;
+                        }
+                        tries++;
+                        if (tries >=10)   // lose condition (only after non-winning guess)
+                        {
+                            for (int i = 0; i < 4; i++)
+                            {
+                                golemSlots[i] = DEFAULT_GOLEM;
+                            }
+                            enteredSpell = "";
+                            check_spell = "";
+                            for (int i = 0; i < 10; i++)
+                            {
+                                guessHistory[i] = "";
+                                for (int j = 0; j < 4; j++)
+                                {
+                                    resultHistory[i][j] = DEFAULT_GOLEM;
+                                }
+                            }
+                            losecondition = true;
+                            losetime = GetTime() + 2.0;
+                            continue;
+                        }
+                }
+
+                if (losecondition) // lose ending
+                {
+                    const char* loseLabel = "YOU LOSE";
+                    int loseSize = 80;
+                    int loseWidth = MeasureText(loseLabel, loseSize);
+                    int loseX = (screenWidth - loseWidth) / 2;
+                    int loseY = (screenHeight - loseSize) / 2;
+                    DrawText(loseLabel, loseX, loseY, loseSize, BLACK);
+                }
+
+            }
 
 
 
