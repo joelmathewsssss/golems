@@ -86,6 +86,7 @@ int main()
 
 
     bool gameloop = false;// init game conditions
+    bool help = false;
     bool wincondition = false;
     double wintime = 0.0;
     bool losecondition = false;
@@ -108,44 +109,113 @@ int main()
                 DrawTexture(titleTexture, titleX, titleY, WHITE);
 
                 int playX = (screenWidth - buttonWidth) / 2;
-                int playY = titleY + titleHeight + 100; // place button below title
+                int playY = titleY + titleHeight + 100; // place play button below title
                 Rectangle playButton = {(float)playX, (float)playY, (float)buttonWidth, (float)buttonHeight};
 
-                bool playhovering = CheckCollisionPointRec(GetMousePosition(), playButton); // check if hovering over play button
-                DrawRectangleRec(playButton, playhovering ? buttonHoverColor : buttonColor);
-                DrawRectangleLinesEx(playButton, 3.0f, BLACK);
+                int helpX = (screenWidth - buttonWidth) / 2;
+                int helpY = titleY + titleHeight + 200; // place help button below title
+                Rectangle helpButton = {(float)helpX, (float)helpY, (float)buttonWidth, (float)buttonHeight};
 
-                const char* playLabel = "PLAY"; // play button
-                int playSize = 40;
-                int playWidth = MeasureText(playLabel, playSize);
-                int playTextX = playX + (buttonWidth - playWidth) / 2;
-                int playTextY = playY + (buttonHeight - playSize) / 2;
-                DrawText(playLabel, playTextX, playTextY, playSize, WHITE);
-
-                if (playhovering && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))    // play button press to game start
+                if (!help)
                 {
-                    WaitTime(0.2f); // delay start
-                    gameloop = true; // reset game conditions
-                    wincondition = false;
-                    wintime = 0.0;
-                    losecondition = false;
-                    losetime = 0.0;
-                    tries = 0;
-                    enteredSpell = "";
-                    check_spell = "";
-                    for (int i = 0; i < 4; i++)
+                    bool playhovering = CheckCollisionPointRec(GetMousePosition(), playButton); // check if hovering over play button
+                    DrawRectangleRec(playButton, playhovering ? buttonHoverColor : buttonColor);
+                    DrawRectangleLinesEx(playButton, 3.0f, BLACK);
+
+                    const char* playLabel = "PLAY"; // play button
+                    int playSize = 40;
+                    int playWidth = MeasureText(playLabel, playSize);
+                    int playTextX = playX + (buttonWidth - playWidth) / 2;
+                    int playTextY = playY + (buttonHeight - playSize) / 2;
+                    DrawText(playLabel, playTextX, playTextY, playSize, WHITE);
+
+                    bool helphovering = CheckCollisionPointRec(GetMousePosition(), helpButton); // check if hovering over help button
+                    DrawRectangleRec(helpButton, helphovering ? buttonHoverColor : buttonColor);
+                    DrawRectangleLinesEx(helpButton, 3.0f, BLACK);
+
+                    const char* helpLabel = "HELP"; // help button
+                    int helpSize = 40;
+                    int helpWidth = MeasureText(helpLabel, helpSize);
+                    int helpTextX = helpX + (buttonWidth - helpWidth) / 2;
+                    int helpTextY = helpY + (buttonHeight - helpSize) / 2;
+                    DrawText(helpLabel, helpTextX, helpTextY, helpSize, WHITE);
+
+                    if (helphovering && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))    // help button press to show rules
                     {
-                        golemSlots[i] = DEFAULT_GOLEM;
+                        help = true;
                     }
-                    for (int i = 0; i < 10; i++)
+
+                    if (playhovering && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))    // play button press to game start
                     {
-                        guessHistory[i] = "";
-                        for (int j = 0; j < 4; j++)
+                        WaitTime(0.2f); // delay start
+                        gameloop = true; // reset game conditions
+                        wincondition = false;
+                        wintime = 0.0;
+                        losecondition = false;
+                        losetime = 0.0;
+                        tries = 0;
+                        enteredSpell = "";
+                        check_spell = "";
+                        for (int i = 0; i < 4; i++)
                         {
-                            resultHistory[i][j] = DEFAULT_GOLEM;
+                            golemSlots[i] = DEFAULT_GOLEM;
                         }
+                        for (int i = 0; i < 10; i++)
+                        {
+                            guessHistory[i] = "";
+                            for (int j = 0; j < 4; j++)
+                            {
+                                resultHistory[i][j] = DEFAULT_GOLEM;
+                            }
+                        }
+                        currentSpell = secretspell();   // get secret spell
                     }
-                    currentSpell = secretspell();   // get secret spell
+                }
+                else
+                {
+                    Rectangle helpTextBox = {(float)(screenWidth / 2 - 650), (float)(titleY + titleHeight), 1300.0f, 230.0f};
+                    DrawRectangleRec(helpTextBox, buttonHoverColor);
+                    DrawRectangleLinesEx(helpTextBox, 3.0f, BLACK);
+
+                    const char* helpLines[] = {
+                        "The golems of Ankh Morpork are rising up under Adora after years of unfair labor.",
+                        "The City Watch must stop them by guessing a 4-element control spell.",
+                        "Each element is one of: Fire, Water, Air, Earth. Duplicates are allowed.",
+                        "After each guess, golem eyes provide clues:",
+                        "RED = correct element in the correct location.",
+                        "BLUE = correct element in the wrong location.",
+                        "Example: Secret FFAW, Guess FEWA -> RBB. Guess FAFW -> RRBB.",
+                        "You only get 10 guesses to disable the golems."
+                    };
+                    int lineCount = sizeof(helpLines) / sizeof(helpLines[0]);
+                    int helpTextSize = 29;
+                    int lineHeight = 28;
+                    int textStartY = (int)helpTextBox.y + ((int)helpTextBox.height - (lineCount * lineHeight)) / 2;
+                    for (int i = 0; i < lineCount; i++)
+                    {
+                        int lineWidth = MeasureText(helpLines[i], helpTextSize);
+                        int lineX = (int)helpTextBox.x + ((int)helpTextBox.width - lineWidth) / 2;
+                        int lineY = textStartY + i * lineHeight;
+                        DrawText(helpLines[i], lineX, lineY, helpTextSize, BLACK);
+                    }
+
+                    int exitY = helpY + 35;
+                    Rectangle exitButton = {(float)helpX, (float)exitY, (float)buttonWidth, (float)buttonHeight};
+                    bool exithovering = CheckCollisionPointRec(GetMousePosition(), exitButton); // help button replaced by exit button
+                    DrawRectangleRec(exitButton, exithovering ? buttonHoverColor : buttonColor);
+                    DrawRectangleLinesEx(exitButton, 3.0f, BLACK);
+
+                    const char* exitLabel = "EXIT";
+                    int exitSize = 40;
+                    int exitWidth = MeasureText(exitLabel, exitSize);
+                    int exitTextX = helpX + (buttonWidth - exitWidth) / 2;
+                    int exitTextY = exitY + (buttonHeight - exitSize) / 2;
+                    DrawText(exitLabel, exitTextX, exitTextY, exitSize, WHITE);
+
+                    if (exithovering && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) // return home
+                    {
+                        help = false;
+                    }
                 }
             }
 
